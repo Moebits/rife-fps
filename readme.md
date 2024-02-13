@@ -14,7 +14,7 @@ npm install rife
 ```ts
 import rife from "rife"
 /*The multiplier multiplies the framerate. To interlopate a 30FPS video into 60FPS set it to 2.*/
-await waifu2x.upscaleVideo("./videos/input.mp4", "./videos/input2.mp4", {multiplier: 2}, progress)
+await rife.upscaleVideo("./videos/input.mp4", "./videos/input2.mp4", {multiplier: 2}, progress)
 
 /*You can track progress with a callback.*/
 let progress = (percent: number) => {
