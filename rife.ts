@@ -21,7 +21,7 @@ export interface RifeOptions {
     threads?: number
     speed?: number
     reverse?: boolean
-    pitch?: number
+    pitch?: boolean
     noResume?: boolean
     pngFrames?: boolean
     transparentColor?: string
@@ -219,7 +219,7 @@ export default class Rife {
         let frameDest = `${folder}/${path.basename(input, path.extname(input))}Frames`
         let resume = 0
         fs.mkdirSync(frameDest, {recursive: true})
-        let framerate = ["-framerate", `${options.framerate}`]
+        let framerate = ["-r", `${options.framerate}`]
         let crf = options.quality ? ["-crf", `${options.quality}`] : ["-crf", "16"]
         let codec = ["-vcodec", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart"]
         let colorFlags = ["-color_primaries", "bt709", "-colorspace", "bt709", "-color_trc", "bt709"]
