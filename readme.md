@@ -4,7 +4,7 @@ for example from 30FPS to 60FPS.
 
 ### Insall
 ```ts
-npm install rife
+npm install rife.ts
 ```
 
 ### Useful Links
@@ -12,9 +12,12 @@ npm install rife
 
 #### Interlopating Videos
 ```ts
-import rife from "rife"
+import rife from "rife.ts"
 /*The multiplier multiplies the framerate. To interlopate a 30FPS video into 60FPS set it to 2.*/
-await rife.upscaleVideo("./videos/input.mp4", "./videos/input2.mp4", {multiplier: 2}, progress)
+await rife.interlopateVideo("./videos/input.mp4", "./videos/input2.mp4", {multiplier: 2}, progress)
+
+/*Just a directory of image frames.*/
+await rife.interlopateDirectory("./input_images", "./output_images", {multiplier: 2}, progress)
 
 /*You can track progress with a callback.*/
 let progress = (percent: number) => {

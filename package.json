@@ -1,6 +1,6 @@
 {
   "name": "rife.ts",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Video framerate interlopation with rife",
   "main": "dist/rife.js",
   "types": "dist/rife.d.ts",
