@@ -80,7 +80,7 @@ export default class Rife {
         return {width, height}
     }
 
-    public static interlopateDirectory = async (inputDir: string, outputDir: string, options?: RifeOptions, progress?: (percent: number) => void) => {
+    public static interpolateDirectory = async (inputDir: string, outputDir: string, options?: RifeOptions, progress?: (percent: number) => void) => {
         let frameExt = options.pngFrames ? "png" : "jpg"
         let frameArray = fs.readdirSync(inputDir).map((f) => `${inputDir}/${f}`).filter((f) => path.extname(f) === `.${frameExt}`)
         frameArray = frameArray.sort(new Intl.Collator(undefined, {numeric: true, sensitivity: "base"}).compare)
@@ -146,7 +146,7 @@ export default class Rife {
         })
     }
 
-    public static interlopateGIF = async (input: string, output?: string, options?: RifeOptions, progress?: (percent: number) => void) => {
+    public static interpolateGIF = async (input: string, output?: string, options?: RifeOptions, progress?: (percent: number) => void) => {
         options = {...options}
         if (!output) output = "./"
         let frameExt = options.pngFrames ? "png" : "jpg" as any
@@ -183,7 +183,7 @@ export default class Rife {
 
         let cancel = false
         options.rename = ""
-        await Rife.interlopateDirectory(frameDest, interlopDest, options, progress)
+        await Rife.interpolateDirectory(frameDest, interlopDest, options, progress)
 
         let interlopFrames = fs.readdirSync(interlopDest).map((f) => `${interlopDest}/${f}`).filter((f) => path.extname(f) === `.${frameExt}`)
         interlopFrames = interlopFrames.sort(new Intl.Collator(undefined, {numeric: true, sensitivity: "base"}).compare)
@@ -204,7 +204,7 @@ export default class Rife {
         return path.normalize(finalDest).replace(/\\/g, "/")
     }
 
-    public static interlopateVideo = async (input: string, output?: string, options?: RifeOptions, progress?: (percent: number) => void) => {
+    public static interpolateVideo = async (input: string, output?: string, options?: RifeOptions, progress?: (percent: number) => void) => {
         options = {...options}
         if (!output) output = "./"
         if (options.ffmpegPath) ffmpeg.setFfmpegPath(options.ffmpegPath)
@@ -245,7 +245,7 @@ export default class Rife {
 
         let cancel = false
         options.rename = ""
-        await Rife.interlopateDirectory(frameDest, interlopDest, options, progress)
+        await Rife.interpolateDirectory(frameDest, interlopDest, options, progress)
 
         let tempDest = `${interlopDest}/temp.mp4`
         let finalDest = path.join(folder, image)

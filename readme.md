@@ -1,5 +1,5 @@
 ### About
-This package uses pre-built Rife binaries in order to interlopate video frames. You can use this to increase the framerate, 
+This package uses pre-built Rife binaries in order to interpolate video frames. You can use this to increase the framerate, 
 for example from 30FPS to 60FPS.
 
 ### Insall
@@ -13,11 +13,11 @@ npm install rife-fps
 #### Interlopating Videos
 ```ts
 import rife from "rife-fps"
-/*The multiplier multiplies the framerate. To interlopate a 30FPS video into 60FPS set it to 2.*/
-await rife.interlopateVideo("./videos/input.mp4", "./videos/input2.mp4", {multiplier: 2}, progress)
+/*The multiplier multiplies the framerate. To interpolate a 30FPS video into 60FPS set it to 2.*/
+await rife.interpolateVideo("./videos/input.mp4", "./videos/input2.mp4", {multiplier: 2}, progress)
 
 /*Just a directory of image frames.*/
-await rife.interlopateDirectory("./input_images", "./output_images", {multiplier: 2}, progress)
+await rife.interpolateDirectory("./input_images", "./output_images", {multiplier: 2}, progress)
 
 /*You can track progress with a callback.*/
 let progress = (percent: number) => {
