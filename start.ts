@@ -5,7 +5,7 @@ const start = async () => {
     const progress = (percent: number) => {
         console.log(percent)
     }
-    const result = await rife.interpolateDirectory("/Volumes/Files/Misc/upscaled", "/Volumes/Files/Misc/interpolated", {multiplier: 2}, progress)
+    const result = await rife.interpolateVideo("./videos/vids/input.mp4", "./videos/vids", {multiplier: 2}, progress)
     console.log(result)
 }
 start()

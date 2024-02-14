@@ -152,7 +152,7 @@ export default class Rife {
         let program = `cd "${absolute}" && rife-ncnn-vulkan.exe`
         if (process.platform === "darwin") program = `cd "${absolute}" && ./rife-ncnn-vulkan.app`
         if (process.platform === "linux") program = `cd "${absolute}" && ./rife-ncnn-vulkan`
-        let command = `${program} -i "${inputDir}" -o "${outputDir}" -f "frame%d.${frameExt}" -v`
+        let command = `${program} -i "${inputDir}" -o "${outputDir}" -f "frame%08d.${frameExt}" -v`
         if (options.threads) command += ` -j ${options.threads}:${options.threads}:${options.threads}`
         if (options.rifeModel) {
             command += ` -m ${options.rifeModel}`
@@ -203,7 +203,7 @@ export default class Rife {
             if (fs.readdirSync(bucket).length === 1000) continue
             await Promise.all(splitArray[i].map((img: string) => {
                 const dest = path.join(bucket, path.basename(img))
-                fs.renameSync(img, dest)
+                fs.copyFileSync(img, dest)
             }))
             if (progress) {
                 const stop = progress(null)
@@ -235,7 +235,7 @@ export default class Rife {
 
         const index = fs.readdirSync(outputDir).length - 2
         await Promise.all(interArray.map((file, i) => {
-            fs.renameSync(file, path.join(outputDir, `frame${index+i}${path.extname(interArray[i])}`))
+            fs.renameSync(file, path.join(outputDir, `frame${String(index+i).padStart(8, "0")}${path.extname(interArray[i])}`))
         }))
         
         return false
@@ -357,7 +357,7 @@ export default class Rife {
         if (resume === 0) {
             await new Promise<void>((resolve) => {
                 ffmpeg(input).outputOptions([...framerate])
-                .save(`${frameDest}/frame%d.${frameExt}`)
+                .save(`${frameDest}/frame%08d.${frameExt}`)
                 .on("end", () => resolve())
             })
             await new Promise<void>((resolve, reject) => {
@@ -383,7 +383,7 @@ export default class Rife {
         if (audio) {
             let filter: string[] = ["-vf", `${crop}`]
             await new Promise<void>((resolve) => {
-                ffmpeg(`${interlopDest}/frame%d.${frameExt}`).input(audio).outputOptions([...targetFramerate, ...codec, ...crf, ...colorFlags, ...filter])
+                ffmpeg(`${interlopDest}/frame%08d.${frameExt}`).input(audio).outputOptions([...targetFramerate, ...codec, ...crf, ...colorFlags, ...filter])
                 .save(`${interlopDest}/${image}`)
                 .on("end", () => resolve())
             })
@@ -401,7 +401,7 @@ export default class Rife {
         } else {
             let filter = ["-filter_complex", `[0:v]${crop},setpts=${1.0/options.speed}*PTS${options.reverse ? ",reverse": ""}[v]`, "-map", "[v]"]
             await new Promise<void>((resolve) => {
-                ffmpeg(`${interlopDest}/frame%d.${frameExt}`).outputOptions([...targetFramerate, ...codec, ...crf, ...colorFlags, ...filter])
+                ffmpeg(`${interlopDest}/frame%08d.${frameExt}`).outputOptions([...targetFramerate, ...codec, ...crf, ...colorFlags, ...filter])
                 .save(tempDest)
                 .on("end", () => resolve())
             })
