@@ -26,13 +26,14 @@ export interface RifeOptions {
     pngFrames?: boolean
     transparentColor?: string
     parallelFrames?: number
+    rifeModel?: string
 }
 
 export default class Rife {
     public static chmod777 = (rifePath?: string) => {
         if (process.platform === "win32") return
         const rife = rifePath ? path.normalize(rifePath).replace(/\\/g, "/") : path.join(__dirname, "../rife")
-        fs.chmodSync(`${rife}/mac/rife-ncnn-vulkan`, "777")
+        fs.chmodSync(`${rife}/rife-ncnn-vulkan.app`, "777")
     }
 
     private static parseFilename = (source: string, dest: string, rename: string) => {
@@ -91,11 +92,16 @@ export default class Rife {
 
     public static interpolateFrame = async (input1: string, input2: string, outputPath: string, options?: RifeOptions) => {
         let absolute = options.rifePath ? path.normalize(options.rifePath).replace(/\\/g, "/") : path.join(__dirname, "../rife")
-        let program = `cd "${absolute}" && cd windows && rife-ncnn-vulkan.exe`
-        if (process.platform === "darwin") program = `cd "${absolute}" && cd mac && ./rife-ncnn-vulkan`
-        if (process.platform === "linux") program = `cd "${absolute}" && cd linux && ./rife-ncnn-vulkan`
-        let command = `${program} -0 "${input1}" -1 "${input2}" -o "${outputPath}" -m "rife-v4.6"`
+        let program = `cd "${absolute}" && rife-ncnn-vulkan.exe`
+        if (process.platform === "darwin") program = `cd "${absolute}" && ./rife-ncnn-vulkan.app`
+        if (process.platform === "linux") program = `cd "${absolute}" && ./rife-ncnn-vulkan`
+        let command = `${program} -0 "${input1}" -1 "${input2}" -o "${outputPath}"`
         if (options.threads) command += ` -j ${options.threads}:${options.threads}:${options.threads}`
+        if (options.rifeModel) {
+            command += ` -m ${options.rifeModel}`
+        } else {
+            command += ` -m "rife-v4.6"`
+        }
 
         const child = child_process.exec(command)
         await new Promise<void>((resolve, reject) => {
@@ -143,11 +149,16 @@ export default class Rife {
         if (!options.multiplier) options.multiplier = 2
         const targetCount = frameArray.length * options.multiplier
         let absolute = options.rifePath ? path.normalize(options.rifePath).replace(/\\/g, "/") : path.join(__dirname, "../rife")
-        let program = `cd "${absolute}" && cd windows && rife-ncnn-vulkan.exe`
-        if (process.platform === "darwin") program = `cd "${absolute}" && cd mac && ./rife-ncnn-vulkan`
-        if (process.platform === "linux") program = `cd "${absolute}" && cd linux && ./rife-ncnn-vulkan`
-        let command = `${program} -i "${inputDir}" -o "${outputDir}" -m "rife-v4.6" -f "frame%d.${frameExt}" -n ${targetCount} -v`
+        let program = `cd "${absolute}" && rife-ncnn-vulkan.exe`
+        if (process.platform === "darwin") program = `cd "${absolute}" && ./rife-ncnn-vulkan.app`
+        if (process.platform === "linux") program = `cd "${absolute}" && ./rife-ncnn-vulkan`
+        let command = `${program} -i "${inputDir}" -o "${outputDir}" -f "frame%d.${frameExt}" -v`
         if (options.threads) command += ` -j ${options.threads}:${options.threads}:${options.threads}`
+        if (options.rifeModel) {
+            command += ` -m ${options.rifeModel}`
+        } else {
+            command += ` -m "rife-v4.6" -n ${targetCount}`
+        }
 
         const child = child_process.exec(command)
         let index = 0
