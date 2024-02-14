@@ -25,6 +25,7 @@ export interface RifeOptions {
     noResume?: boolean
     pngFrames?: boolean
     transparentColor?: string
+    parallelFrames?: number
 }
 
 export default class Rife {
@@ -80,8 +81,63 @@ export default class Rife {
         return {width, height}
     }
 
-    public static interpolateDirectory = async (inputDir: string, outputDir: string, options?: RifeOptions, progress?: (percent: number) => void) => {
+    private static splitArray = (array: any[], chunkSize: number) => {
+        const result = []
+        for (let i = 0; i < array.length; i += chunkSize) {
+          result.push(array.slice(i, i + chunkSize))
+        }
+        return result
+    }
+
+    public static interpolateFrame = async (input1: string, input2: string, outputPath: string, options?: RifeOptions) => {
+        let absolute = options.rifePath ? path.normalize(options.rifePath).replace(/\\/g, "/") : path.join(__dirname, "../rife")
+        let program = `cd "${absolute}" && cd windows && rife-ncnn-vulkan.exe`
+        if (process.platform === "darwin") program = `cd "${absolute}" && cd mac && ./rife-ncnn-vulkan`
+        if (process.platform === "linux") program = `cd "${absolute}" && cd linux && ./rife-ncnn-vulkan`
+        let command = `${program} -0 "${input1}" -1 "${input2}" -o "${outputPath}" -m "rife-v4.6"`
+        if (options.threads) command += ` -j ${options.threads}:${options.threads}:${options.threads}`
+
+        const child = child_process.exec(command)
+        await new Promise<void>((resolve, reject) => {
+            child.on("close", () => {
+                resolve()
+            })
+        })
+        return outputPath
+    }
+
+    public static interpolateDirectorySingle = async (inputDir: string, outputDir: string, options?: RifeOptions, progress?: (percent: number) => void | boolean) => {
         let frameExt = options.pngFrames ? "png" : "jpg"
+        let frameArray = fs.readdirSync(inputDir).map((f) => `${inputDir}/${f}`).filter((f) => path.extname(f) === `.${frameExt}`)
+        frameArray = frameArray.sort(new Intl.Collator(undefined, {numeric: true, sensitivity: "base"}).compare)
+        if (!options.multiplier) options.multiplier = 2
+
+        let resume = 0
+        const existing = fs.readdirSync(outputDir)
+        if (existing.length) resume = Math.floor(existing.length / options.multiplier)
+        let total = frameArray.length * options.multiplier
+
+        for (let i = resume; i < frameArray.length; i++) {
+            let block = [frameArray[i]]
+            for (let j = 0; j < options.multiplier; j++) {
+                const index = i * options.multiplier + j
+                const outputPath = path.join(outputDir, `frame${index}.${frameExt}`)
+                const input2 = frameArray[i + 1] ? frameArray[i + 1] : frameArray[i]
+                await Rife.interpolateFrame(block[block.length - 1], input2, outputPath, options)
+                block.push(outputPath)
+                if (progress) {
+                    const stop = progress(100 / total * index)
+                    if (stop) return true
+                }
+            }
+        }
+        return false
+    }
+
+    public static interpolateBucket = async (originalDir: string, inputDir: string, outputDir: string, options?: RifeOptions, progress?: (percent: number) => void | boolean) => {
+        let frameExt = options.pngFrames ? "png" : "jpg"
+        let originalArray = fs.readdirSync(originalDir).map((f) => `${originalDir}/${f}`).filter((f) => path.extname(f) === `.${frameExt}`)
+        originalArray = originalArray.sort(new Intl.Collator(undefined, {numeric: true, sensitivity: "base"}).compare)
         let frameArray = fs.readdirSync(inputDir).map((f) => `${inputDir}/${f}`).filter((f) => path.extname(f) === `.${frameExt}`)
         frameArray = frameArray.sort(new Intl.Collator(undefined, {numeric: true, sensitivity: "base"}).compare)
         if (!options.multiplier) options.multiplier = 2
@@ -90,7 +146,7 @@ export default class Rife {
         let program = `cd "${absolute}" && cd windows && rife-ncnn-vulkan.exe`
         if (process.platform === "darwin") program = `cd "${absolute}" && cd mac && ./rife-ncnn-vulkan`
         if (process.platform === "linux") program = `cd "${absolute}" && cd linux && ./rife-ncnn-vulkan`
-        let command = `${program} -i "${inputDir}" -o "${outputDir}" -m "rife-v4.6" -f "frame%08d.${frameExt}" -n ${targetCount} -v`
+        let command = `${program} -i "${inputDir}" -o "${outputDir}" -m "rife-v4.6" -f "frame%d.${frameExt}" -n ${targetCount} -v`
         if (options.threads) command += ` -j ${options.threads}:${options.threads}:${options.threads}`
 
         const child = child_process.exec(command)
@@ -98,17 +154,80 @@ export default class Rife {
         await new Promise<void>((resolve, reject) => {
             child.stderr.on("data", (chunk) => {
                 const name = chunk.match(/(frame)(.*?)(?= )/)?.[0]
-                const newIndex = frameArray.findIndex((f: string) => path.basename(f) === name)
+                const newIndex = originalArray.findIndex((f: string) => path.basename(f) === name)
                 if (newIndex > index) index = newIndex
-                const percent = 100 / (frameArray.length - 1) * index
-                if (progress) progress(percent)
+                const percent = 100 / (originalArray.length - 1) * index
+                if (progress) {
+                    const stop = progress(percent)
+                    if (stop) {
+                        child.stdio.forEach((s) => s.destroy())
+                        child.kill("SIGINT")
+                        return true
+                    }
+                }
             })
             child.on("close", () => {
-                if (progress) progress(100)
                 resolve()
             })
         })
-        return outputDir
+        return false
+    }
+
+    public static interpolateDirectory = async (inputDir: string, outputDir: string, options?: RifeOptions, progress?: (percent: number) => void | boolean) => {
+        let frameExt = options.pngFrames ? "png" : "jpg"
+        let frameArray = fs.readdirSync(inputDir).map((f) => `${inputDir}/${f}`).filter((f) => path.extname(f) === `.${frameExt}`)
+        frameArray = frameArray.sort(new Intl.Collator(undefined, {numeric: true, sensitivity: "base"}).compare)
+        if (!options.multiplier) options.multiplier = 2
+        const targetCount = frameArray.length * options.multiplier
+        
+        const splitArray = Rife.splitArray(frameArray, 1000)
+        const bucketDir = path.join(outputDir, "buckets")
+        const interBucketDir = path.join(outputDir, "interBuckets")
+        if (!fs.existsSync(bucketDir)) fs.mkdirSync(bucketDir, {recursive: true})
+        if (!fs.existsSync(interBucketDir)) fs.mkdirSync(interBucketDir, {recursive: true})
+
+        for (let i = 0; i < splitArray.length; i++) {
+            const bucket = path.join(bucketDir, String(i+1))
+            if (!fs.existsSync(bucket)) fs.mkdirSync(bucket, {recursive: true})
+            if (fs.readdirSync(bucket).length === 1000) continue
+            await Promise.all(splitArray[i].map((img: string) => {
+                const dest = path.join(bucket, path.basename(img))
+                fs.renameSync(img, dest)
+            }))
+            if (progress) {
+                const stop = progress(null)
+                if (stop) return true
+            }
+        }
+
+        for (let i = 0; i < splitArray.length; i++) {
+            const bucket = path.join(bucketDir, String(i+1))
+            const interBucket = path.join(interBucketDir, String(i+1))
+            if (!fs.existsSync(interBucket)) fs.mkdirSync(interBucket, {recursive: true})
+            if (fs.readdirSync(interBucket).length === 1000 * options.multiplier) continue
+            let cancel = await Rife.interpolateBucket(inputDir, bucket, interBucket, options, progress)
+            if (cancel) return true
+            if (progress) {
+                const stop = progress(null)
+                if (stop) return true
+            }
+        }
+        if (progress) progress(100)
+
+        let interArray = []
+        for (let i = 0; i < splitArray.length; i++) {
+            const interBucket = path.join(interBucketDir, String(i+1))
+            let files = fs.readdirSync(interBucket).map((f: string) => path.join(interBucket, f))
+            files = files.sort(new Intl.Collator(undefined, {numeric: true, sensitivity: "base"}).compare)
+            interArray.push(...files)
+        }
+
+        const index = fs.readdirSync(outputDir).length - 2
+        await Promise.all(interArray.map((file, i) => {
+            fs.renameSync(file, path.join(outputDir, `frame${index+i}${path.extname(interArray[i])}`))
+        }))
+        
+        return false
     }
 
     private static parseTransparentColor = (color: string) => {
@@ -146,7 +265,7 @@ export default class Rife {
         })
     }
 
-    public static interpolateGIF = async (input: string, output?: string, options?: RifeOptions, progress?: (percent: number) => void) => {
+    public static interpolateGIF = async (input: string, output?: string, options?: RifeOptions, progress?: (percent: number) => void | boolean) => {
         options = {...options}
         if (!output) output = "./"
         let frameExt = options.pngFrames ? "png" : "jpg" as any
@@ -158,7 +277,6 @@ export default class Rife {
             input = path.join(local, input)
         }
         let frameDest = `${folder}/${path.basename(input, path.extname(input))}Frames`
-        let resume = 0
         fs.mkdirSync(frameDest, {recursive: true})
         const constraint = options.speed > 1 ? frames.length / options.speed : frames.length
         let step = Math.ceil(frames.length / constraint)
@@ -181,9 +299,8 @@ export default class Rife {
         const interlopDest = `${frameDest}/interlop`
         if (!fs.existsSync(interlopDest)) fs.mkdirSync(interlopDest, {recursive: true})
 
-        let cancel = false
         options.rename = ""
-        await Rife.interpolateDirectory(frameDest, interlopDest, options, progress)
+        let cancel = await Rife.interpolateDirectory(frameDest, interlopDest, options, progress)
 
         let interlopFrames = fs.readdirSync(interlopDest).map((f) => `${interlopDest}/${f}`).filter((f) => path.extname(f) === `.${frameExt}`)
         interlopFrames = interlopFrames.sort(new Intl.Collator(undefined, {numeric: true, sensitivity: "base"}).compare)
@@ -204,7 +321,7 @@ export default class Rife {
         return path.normalize(finalDest).replace(/\\/g, "/")
     }
 
-    public static interpolateVideo = async (input: string, output?: string, options?: RifeOptions, progress?: (percent: number) => void) => {
+    public static interpolateVideo = async (input: string, output?: string, options?: RifeOptions, progress?: (percent: number) => void | boolean) => {
         options = {...options}
         if (!output) output = "./"
         if (options.ffmpegPath) ffmpeg.setFfmpegPath(options.ffmpegPath)
@@ -229,7 +346,7 @@ export default class Rife {
         if (resume === 0) {
             await new Promise<void>((resolve) => {
                 ffmpeg(input).outputOptions([...framerate])
-                .save(`${frameDest}/frame%08d.${frameExt}`)
+                .save(`${frameDest}/frame%d.${frameExt}`)
                 .on("end", () => resolve())
             })
             await new Promise<void>((resolve, reject) => {
@@ -243,9 +360,8 @@ export default class Rife {
         let interlopDest = `${frameDest}/interlop`
         if (!fs.existsSync(interlopDest)) fs.mkdirSync(interlopDest, {recursive: true})
 
-        let cancel = false
         options.rename = ""
-        await Rife.interpolateDirectory(frameDest, interlopDest, options, progress)
+        let cancel = await Rife.interpolateDirectory(frameDest, interlopDest, options, progress)
 
         let tempDest = `${interlopDest}/temp.mp4`
         let finalDest = path.join(folder, image)
@@ -256,7 +372,7 @@ export default class Rife {
         if (audio) {
             let filter: string[] = ["-vf", `${crop}`]
             await new Promise<void>((resolve) => {
-                ffmpeg(`${interlopDest}/frame%08d.${frameExt}`).input(audio).outputOptions([...targetFramerate, ...codec, ...crf, ...colorFlags, ...filter])
+                ffmpeg(`${interlopDest}/frame%d.${frameExt}`).input(audio).outputOptions([...targetFramerate, ...codec, ...crf, ...colorFlags, ...filter])
                 .save(`${interlopDest}/${image}`)
                 .on("end", () => resolve())
             })
@@ -274,7 +390,7 @@ export default class Rife {
         } else {
             let filter = ["-filter_complex", `[0:v]${crop},setpts=${1.0/options.speed}*PTS${options.reverse ? ",reverse": ""}[v]`, "-map", "[v]"]
             await new Promise<void>((resolve) => {
-                ffmpeg(`${interlopDest}/frame%08d.${frameExt}`).outputOptions([...targetFramerate, ...codec, ...crf, ...colorFlags, ...filter])
+                ffmpeg(`${interlopDest}/frame%d.${frameExt}`).outputOptions([...targetFramerate, ...codec, ...crf, ...colorFlags, ...filter])
                 .save(tempDest)
                 .on("end", () => resolve())
             })
