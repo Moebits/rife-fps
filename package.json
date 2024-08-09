@@ -17,9 +17,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Tenpi/rife"
+    "url": "https://github.com/Moebits/rife"
   },
-  "author": "Moepi",
+  "author": "Moebits",
   "license": "MIT",
   "devDependencies": {
     "@types/fluent-ffmpeg": "^2.1.24",
