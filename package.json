@@ -29,7 +29,7 @@
     "fluent-ffmpeg": "^2.1.2",
     "get-pixels": "^3.3.3",
     "gif-encoder": "^0.7.2",
-    "gif-frames": "github:tenpi/gif-frames#no-cumulative",
+    "gif-frames": "github:moebits/gif-frames#no-cumulative",
     "image-size": "^1.1.1"
   }
 }
